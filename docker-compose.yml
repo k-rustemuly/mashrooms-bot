@@ -1,0 +1,93 @@
+version: '3'
+services:
+    nginx:
+        image: nginx:latest
+        volumes:
+            - ./:/var/www
+            - ./docker/nginx/conf.d:/etc/nginx/conf.d
+            - /tmp/acme-challenge:/var/www/certbot
+            - /etc/letsencrypt:/etc/nginx/ssl
+        ports:
+            - 80:80
+            - 443:443
+        depends_on:
+            - app
+        restart: unless-stopped
+        container_name: ${CONTAINER_PREFIX}_nginx
+        networks:
+            - my-network
+    app:
+        container_name: ${CONTAINER_PREFIX}_app
+        image: $REGISTRY/app:latest
+        ports:
+            - 9000
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
+            XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
+            IGNITION_LOCAL_SITES_PATH: '${PWD}'
+            APP_KEY: ${APP_KEY}
+            APP_NAME: ${APP_NAME}
+            APP_ENV: ${APP_ENV}
+            APP_URL: ${APP_URL}
+            DB_CONNECTION: ${DB_CONNECTION}
+            DB_HOST: ${DB_HOST}
+            DB_PORT: ${DB_PORT}
+            DB_DATABASE: ${DB_DATABASE}
+            DB_USERNAME: ${DB_USERNAME}
+            DB_PASSWORD: ${DB_PASSWORD}
+            APP_DEBUG: ${APP_DEBUG}
+            LOG_CHANNEL: ${LOG_CHANNEL}
+            MOONSHINE_TITLE: ${MOONSHINE_TITLE}
+            MOONSHINE_ROUTE_PREFIX: ${MOONSHINE_ROUTE_PREFIX}
+            MOONSHINE_ADMIN_PASSWORD: ${MOONSHINE_ADMIN_PASSWORD}
+            TELEGRAM_API_KEY: ${TELEGRAM_API_KEY}
+            TELEGRAM_USERNAME: ${TELEGRAM_USERNAME}
+        volumes:
+            - ./:/var/www
+        working_dir: /var/www
+        restart: unless-stopped
+        depends_on:
+            - mysql
+        networks:
+            - my-network
+    mysql:
+        container_name: ${CONTAINER_PREFIX}_db
+        image: 'mysql/mysql-server:8.0'
+        restart: always
+        ports:
+            - '${FORWARD_DB_PORT:-3306}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_HOST: '${DB_HOST}'
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 1
+        volumes:
+            - '/db/data:/var/lib/mysql'
+        networks:
+            - my-network
+    certbot:
+        image: certbot/certbot:latest
+        container_name: ${CONTAINER_PREFIX}_certbot
+        volumes:
+            - /tmp/acme-challenge:/var/www/certbot
+            - /etc/letsencrypt:/etc/letsencrypt
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        container_name: ${CONTAINER_PREFIX}_pma
+        links:
+            - mysql
+        environment:
+            PMA_HOST: mysql
+            PMA_PORT: 3306
+            PMA_ARBITRARY: 1
+        restart: always
+        ports:
+            - 8081:80
+        networks:
+            - my-network
+networks:
+    my-network:
